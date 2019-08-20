@@ -11,6 +11,8 @@ import (
 	"hash"
 	"hash/crc32"
 	"io"
+
+	"golang.org/x/text/transform"
 )
 
 // TODO(adg): support zip file comments
@@ -18,10 +20,11 @@ import (
 
 // Writer implements a zip file writer.
 type Writer struct {
-	cw     *countWriter
-	dir    []*header
-	last   *fileWriter
-	closed bool
+	cw                  *countWriter
+	dir                 []*header
+	last                *fileWriter
+	closed              bool
+	FileNameTransformer transform.Transformer
 }
 
 type header struct {
@@ -68,6 +71,15 @@ func (w *Writer) Close() error {
 	// write central directory
 	start := w.cw.count
 	for _, h := range w.dir {
+		fileName := h.Name
+		if w.FileNameTransformer != nil {
+			var err error
+			fileName, err = encodeText(fileName, w.FileNameTransformer)
+			if err != nil {
+				return err
+			}
+		}
+
 		var buf [directoryHeaderLen]byte
 		b := writeBuf(buf[:])
 		b.uint32(uint32(directoryHeaderSignature))
@@ -98,7 +110,7 @@ func (w *Writer) Close() error {
 			b.uint32(h.CompressedSize)
 			b.uint32(h.UncompressedSize)
 		}
-		b.uint16(uint16(len(h.Name)))
+		b.uint16(uint16(len(fileName)))
 		b.uint16(uint16(len(h.Extra)))
 		b.uint16(uint16(len(h.Comment)))
 		b = b[4:] // skip disk number start and internal file attr (2x uint16)
@@ -111,7 +123,7 @@ func (w *Writer) Close() error {
 		if _, err := w.cw.Write(buf[:]); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(w.cw, h.Name); err != nil {
+		if _, err := io.WriteString(w.cw, fileName); err != nil {
 			return err
 		}
 		if _, err := w.cw.Write(h.Extra); err != nil {
