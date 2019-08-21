@@ -27,7 +27,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/yeka/zip"
+	"github.com/kmtr/zip"
+	"golang.org/x/text/encoding/japanese"
 )
 
 func main() {
@@ -38,7 +39,8 @@ func main() {
 	}
 	zipw := zip.NewWriter(fzip)
 	defer zipw.Close()
-	w, err := zipw.Encrypt(`test.txt`, `golang`, zip.AES256Encryption)
+	zipw.FileNameTransformer = japanese.ShiftJIS.NewEncoder()
+	w, err := zipw.Encrypt(`日本語.txt`, `golang`, zip.StandardEncryption)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,7 +62,7 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/yeka/zip"
+	"github.com/kmtr/zip"
 )
 
 func main() {
